@@ -17,32 +17,6 @@ void overlayMain() {
 }
 
 // === MethodChannel used by BootService to notify Dart ===
-// const _bootChannel = MethodChannel('com.floatlist.app/boot');
-
-// void _setupBootChannel() {
-//   _bootChannel.setMethodCallHandler((call) async {
-//     if (call.method == 'onBootCompleted') {
-//       // Your logic to decide size/position/options
-//       // Request permission if needed
-//       final canDraw = await FlutterOverlayWindow.isPermissionGranted();
-//       if (!canDraw) {
-//         // If your UX allows, silently ignore or persist a flag to prompt next app launch
-//         return;
-//       }
-//       await FlutterOverlayWindow.showOverlay(
-//         enableDrag: true,
-// height: 300,
-// width: 200,
-//         alignment: OverlayAlignment.center,
-//         positionGravity: PositionGravity.right,
-//         // startPosition: OverlayPosition()
-//       );
-//     }
-//     return;
-//   });
-// }
-
-// === MethodChannel used by BootService to notify Dart ===
 const _bootChannel = MethodChannel('com.floatlist.app/boot');
 const _screenChannel = MethodChannel('com.floatlist.app/screen');
 
