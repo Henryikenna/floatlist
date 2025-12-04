@@ -548,92 +548,120 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: tasks.when(
               data: (taskList) {
                 if (taskList.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryPurple.withOpacityFactor(0.05),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.task_alt_rounded,
-                            size: 64,
-                            color: AppTheme.primaryPurple.withOpacityFactor(0.4),
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      await ref.read(taskListProvider.notifier).loadTasks();
+                    },
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryPurple.withOpacityFactor(0.05),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.task_alt_rounded,
+                                  size: 64,
+                                  color: AppTheme.primaryPurple.withOpacityFactor(0.4),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'No tasks yet',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Tap + to add your first task',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Text(
-                          'No tasks yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tap + to add your first task',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: taskList.length,
-                  itemBuilder: (context, index) {
-                    final task = taskList[index];
-                    return TaskItem(task: task);
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await ref.read(taskListProvider.notifier).loadTasks();
                   },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: taskList.length,
+                    itemBuilder: (context, index) {
+                      final task = taskList[index];
+                      return TaskItem(task: task);
+                    },
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.error_outline_rounded,
-                        size: 48,
-                        color: Colors.red.shade400,
+              error: (error, stack) => RefreshIndicator(
+                onRefresh: () async {
+                  await ref.read(taskListProvider.notifier).loadTasks();
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.5,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.error_outline_rounded,
+                              size: 48,
+                              color: Colors.red.shade400,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading tasks',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              ref.read(taskListProvider.notifier).loadTasks();
+                            },
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: const Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryPurple,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error loading tasks',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(taskListProvider.notifier).loadTasks();
-                      },
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Retry'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryPurple,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

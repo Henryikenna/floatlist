@@ -39,6 +39,7 @@ void _setupBootChannel() {
         width: 80,
         alignment: OverlayAlignment.centerRight,
         positionGravity: PositionGravity.none,
+        flag: OverlayFlag.focusPointer,
       );
     }
     return;

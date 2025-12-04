@@ -67,6 +67,7 @@ class OverlayEnabledNotifier extends StateNotifier<bool> {
         width: 80,
         alignment: OverlayAlignment.centerRight,
         positionGravity: PositionGravity.none,
+        flag: OverlayFlag.focusPointer,
       );
 
       // Update state after successful show

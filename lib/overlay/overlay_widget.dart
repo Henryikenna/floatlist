@@ -86,7 +86,9 @@ class _OverlayWidgetState extends ConsumerState<OverlayWidget>
   void _retryLoadingDimensions() {
     // Retry loading dimensions every 500ms until valid
     _dimensionRetryTimer?.cancel();
-    _dimensionRetryTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+    _dimensionRetryTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      timer,
+    ) async {
       await _loadScreenDimensions();
 
       if (_screenSize.width > 0 && _screenSize.height > 0) {
@@ -160,48 +162,106 @@ class _OverlayWidgetState extends ConsumerState<OverlayWidget>
     }
   }
 
+  // Future<void> _expandToCenter() async {
+  //   if (_screenSize.width == 0) return;
+
+  //   final expandedWidth = (_screenSize.width * 0.6).toInt();
+  //   final expandedHeight = (_screenSize.height * 0.7).toInt();
+
+  //   log("$_screenSize");
+  //   log("$expandedHeight");
+  //   log("$expandedWidth");
+
+  //   // Resize overlay window to expanded size
+  //   await FlutterOverlayWindow.resizeOverlay(
+  //     expandedWidth,
+  //     expandedHeight,
+  //     false,
+  //   );
+
+  //   // Calculate center position for expanded view
+  //   final centerX = (_screenSize.width / 2 - expandedWidth / 2);
+  //   final currentY = _currentPosition.dy;
+
+  //   await FlutterOverlayWindow.moveOverlay(OverlayPosition(centerX, currentY));
+
+  //   setState(() {
+  //     _currentPosition = Offset(centerX.toDouble(), currentY.toDouble());
+  //   });
+  // }
+
   Future<void> _expandToCenter() async {
     if (_screenSize.width == 0) return;
 
     final expandedWidth = (_screenSize.width * 0.6).toInt();
     final expandedHeight = (_screenSize.height * 0.7).toInt();
 
-    log("$_screenSize");
-    log("$expandedHeight");
-    log("$expandedWidth");
-
-    // Resize overlay window to expanded size
     await FlutterOverlayWindow.resizeOverlay(
       expandedWidth,
       expandedHeight,
       false,
     );
 
-    // Calculate center position for expanded view
-    final centerX = (_screenSize.width / 2 - expandedWidth / 2);
-    final currentY = _currentPosition.dy;
+    final centerX = (_screenSize.width - expandedWidth) / 2;
+    final centerY = (_screenSize.height - expandedHeight) / 2;
 
-    await FlutterOverlayWindow.moveOverlay(OverlayPosition(centerX, currentY));
+    await FlutterOverlayWindow.moveOverlay(OverlayPosition(centerX, centerY));
 
+    // 🟢 Keep the internal drag baseline in sync with actual overlay position
     setState(() {
-      _currentPosition = Offset(centerX.toDouble(), currentY.toDouble());
+      _currentPosition = Offset(centerX, centerY);
+    });
+
+    // Ensure the overlay can still receive touch + keyboard input
+    await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
+
+    // Optionally focus the text field when expanded
+    Future.delayed(const Duration(milliseconds: 250), () {
+      if (mounted && _isExpanded) _focusNode.requestFocus();
     });
   }
+
+  // Future<void> _collapseToEdge() async {
+  //   if (_screenSize.width == 0) return;
+
+  //   // Resize back to collapsed size
+  //   await FlutterOverlayWindow.resizeOverlay(80, 80, false);
+
+  //   // Always move back to center-right default position
+  //   await _moveToDefaultPosition();
+  // }
 
   Future<void> _collapseToEdge() async {
     if (_screenSize.width == 0) return;
 
-    // Resize back to collapsed size
     await FlutterOverlayWindow.resizeOverlay(80, 80, false);
-
-    // Always move back to center-right default position
     await _moveToDefaultPosition();
+
+    final rightX = (_screenSize.width - 80);
+    final centerY = (_screenSize.height / 2 - 40);
+
+    setState(() {
+      _currentPosition = Offset(rightX, centerY);
+    });
+
+    // Return overlay to default touch behavior (not focus-stealing)
+    await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
   }
 
-  void _onPanStart(DragStartDetails details) {
-    setState(() {
-      _isDragging = true;
-    });
+  // void _onPanStart(DragStartDetails details) {
+  //   setState(() {
+  //     _isDragging = true;
+  //   });
+  // }
+
+  void _onPanStart(DragStartDetails details) async {
+    setState(() => _isDragging = true);
+    try {
+      final pos = await FlutterOverlayWindow.getOverlayPosition();
+      setState(() {
+        _currentPosition = Offset(pos.x, pos.y);
+      });
+    } catch (_) {}
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
@@ -278,9 +338,7 @@ class _OverlayWidgetState extends ConsumerState<OverlayWidget>
     if (_screenSize.width <= 0 || _screenSize.height <= 0) {
       return const Material(
         color: Colors.transparent,
-        child: Center(
-          child: CircularProgressIndicator(),
-        ),
+        child: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -378,7 +436,11 @@ class _OverlayWidgetState extends ConsumerState<OverlayWidget>
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     onPressed: _toggleExpand,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
@@ -460,70 +522,112 @@ class _OverlayWidgetState extends ConsumerState<OverlayWidget>
             child: tasks.when(
               data: (taskList) {
                 if (taskList.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No tasks',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 14,
-                      ),
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      await ref.read(taskListProvider.notifier).loadTasks();
+                      _resetInactivityTimer();
+                    },
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: constraints.maxHeight,
+                            child: Center(
+                              child: Text(
+                                'No tasks',
+                                style: TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  itemCount: taskList.length,
-                  itemBuilder: (context, index) {
-                    final task = taskList[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await ref.read(taskListProvider.notifier).loadTasks();
+                    _resetInactivityTimer();
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: taskList.length,
+                    itemBuilder: (context, index) {
+                      final task = taskList[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        leading: Checkbox(
-                          value: task.completed,
-                          onChanged: (value) {
-                            ref
-                                .read(taskListProvider.notifier)
-                                .toggleTask(task.id, value ?? false);
-                            _resetInactivityTimer(); // Reset timer on interaction
-                          },
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          activeColor: AppTheme.secondaryTeal,
-                        ),
-                        title: Text(
-                          task.text,
-                          style: TextStyle(
-                            decoration: task.completed
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: task.completed
-                                ? AppTheme.textSecondary
-                                : AppTheme.textPrimary,
-                            fontSize: 13,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          leading: Checkbox(
+                            value: task.completed,
+                            onChanged: (value) {
+                              ref
+                                  .read(taskListProvider.notifier)
+                                  .toggleTask(task.id, value ?? false);
+                              _resetInactivityTimer(); // Reset timer on interaction
+                            },
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            activeColor: AppTheme.secondaryTeal,
+                          ),
+                          title: Text(
+                            task.text,
+                            style: TextStyle(
+                              decoration: task.completed
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: task.completed
+                                  ? AppTheme.textSecondary
+                                  : AppTheme.textPrimary,
+                              fontSize: 13,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => RefreshIndicator(
+                onRefresh: () async {
+                  await ref.read(taskListProvider.notifier).loadTasks();
+                  _resetInactivityTimer();
+                },
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: constraints.maxHeight,
+                        child: Center(
+                          child: Text(
+                            'Error loading tasks',
+                            style: TextStyle(
+                              color: Colors.red[300],
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                       ),
                     );
                   },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Text(
-                  'Error loading tasks',
-                  style: TextStyle(color: Colors.red[300], fontSize: 12),
                 ),
               ),
             ),
